@@ -1,4 +1,4 @@
-# noah-home-assignment
+# noah-home-assignmentt
 
 Automation end-to-end test suite using [Playwright](https://playwright.dev/ "view Playwright documentation") and [playwright-bdd](https://vitalets.github.io/playwright-bdd/#/ "view playwright-bdd documentation").
 
