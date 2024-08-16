@@ -1,0 +1,66 @@
+name: Publish Package
+
+on:
+  push:
+    branches:
+      - main  # or the default branch name
+
+jobs:
+  check-label-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '14'  # Adjust based on your project's requirements
+
+    - name: Install dependencies
+      run: npm install
+
+    - name: Check if the push is from a merged PR
+      id: check-pr
+      run: |
+        # Get the commit message
+        COMMIT_MESSAGE=$(git log -1 --pretty=format:'%s')
+        echo "COMMIT_MESSAGE=${COMMIT_MESSAGE}" >> $GITHUB_ENV
+        
+        # Check if the commit is from a PR merge
+        if [[ "$COMMIT_MESSAGE" == *"Merge pull request"* ]]; then
+          # Extract PR number from the commit message
+          PR_NUMBER=$(echo "$COMMIT_MESSAGE" | grep -oP '(?<=#)\d+')
+          echo "PR_NUMBER=${PR_NUMBER}" >> $GITHUB_ENV
+        else
+          echo "Not a merge commit"
+          exit 1
+        fi
+
+    - name: Check PR label
+      id: check-label
+      run: |
+        PR_LABELS=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+          "https://api.github.com/repos/${{ github.repository }}/issues/${{ env.PR_NUMBER }}/labels" \
+          | jq -r '.[].name')
+        
+        if echo "$PR_LABELS" | grep -q '^publish$'; then
+          echo "Label found"
+        else
+          echo "Label not found"
+          exit 1
+        fi
+
+    - name: Bump version and publish
+      run: |
+        npm install -g standard-version
+        standard-version --release-as patch
+        git config user.name "GitHub Actions"
+        git config user.email "actions@github.com"
+        git commit -am "chore(release): bump version to $(node -p "require('./package.json').version")"
+        git tag -a "v$(node -p "require('./package.json').version")" -m "Release version $(node -p "require('./package.json').version")"
+        git push origin main --tags
+        npm publish
+      env:
+        NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
